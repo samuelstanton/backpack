@@ -1,3 +1,4 @@
+"""Implements the backpropagation mechanism."""
 import warnings
 
 from torch.nn import Sequential
@@ -10,18 +11,14 @@ FAIL_SILENT = "SILENT"
 
 
 class BackpropExtension:
-    """
-    Base class for the BackPACK extensions.
-
+    """Base class for the BackPACK extensions.
     Descendants of this class need to
     - define in what field to save results
     - provide a mapping from Module classes to ModuleExtension instances.
-
     They can then be passed to the Backpack context manager, i.e.,
     ```
     with backpack(NewPackpropExtension("myfield", module_to_extensions)):
         loss(model(X), Y).backward()
-
         for p in model.parameters():
             print(p.myfield)
     ```
@@ -30,19 +27,19 @@ class BackpropExtension:
     __external_module_extensions = {}
 
     def __init__(self, savefield, module_exts, fail_mode=FAIL_ERROR):
-        """
-        Parameters
-        ----------
-        savefield : str
-            Where to save results
-        module_exts : dict
-            Dictionary mapping module classes to `ModuleExtension` instances
-        fail_mode : str, optional
-            Behavior when encountering an unknown layer.
-            Can be
-            - "ERROR": raise a NotImplementedError
-            - "WARN": raise a UserWarning
-            - "SILENT": skip the module silently
+        """Initializes parameters.
+        Args:
+            savefield(str):
+                Where to save results
+            module_exts(dict):
+                Dictionary mapping module classes to `ModuleExtension` instances
+            fail_mode(str, optional):
+                Behavior when encountering an unknown layer.
+                Can be
+                - "ERROR": raise a NotImplementedError
+                - "WARN": raise a UserWarning
+                - "SILENT": skip the module silently
+                Defaults to FAIL_ERROR = "ERROR"
         """
         self.savefield = savefield
         self.__module_extensions = {
@@ -54,10 +51,18 @@ class BackpropExtension:
 
     @classmethod
     def add_module_extension(cls, module, extension):
+        """Adds an external module mapping.
+        Args:
+            module(Type[torch.nn.Module]): The module that is supposed to be extended
+            extension(backpack.extensions.module_extension.ModuleExtension):
+                The custom extension of that module.
+        """
         cls.__external_module_extensions[module] = extension
 
     def __get_module_extension(self, module):
         module_extension = self.__module_extensions.get(module.__class__)
+        if module_extension is None:
+            module_extension = self.__external_module_extensions.get(module.__class__)
 
         if module_extension is None:
 
@@ -82,5 +87,11 @@ class BackpropExtension:
         return module_extension.apply
 
     def apply(self, module, g_inp, g_out):
+        """Applies backpropagation.
+        Args:
+            module(torch.nn.module): module to perform backpropagation on
+            g_inp(tuple[torch.Tensor]): input gradient
+            g_out(tuple[torch.Tensor]): output gradient
+        """
         module_extension = self.__get_module_extension(module)
         module_extension(self, module, g_inp, g_out)
